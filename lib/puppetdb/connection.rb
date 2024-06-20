@@ -1,12 +1,14 @@
+# frozen_string_literal: true
+
 require 'puppetdb'
+require 'rubygems'
+require 'puppetdb/parser'
+require 'uri'
+require 'puppet'
+require 'puppet/util/logging'
+require 'json'
 
 class PuppetDB::Connection
-  require 'rubygems'
-  require 'puppetdb/parser'
-  require 'uri'
-  require 'puppet'
-  require 'puppet/util/logging'
-
   include Puppet::Util::Logging
 
   def initialize(host = 'puppetdb', port = 443, use_ssl = true)
@@ -34,7 +36,6 @@ EOT
   # @param options [Hash] specify extract values or http connection
   # @return [Array] the results of the query
   def query(endpoint, query = nil, options = {}, version = :v4)
-    require 'json'
 
     default_options = {
       :http => nil,   # A HTTP object to be used for the connection
@@ -53,8 +54,7 @@ EOT
     source = options[:source]
 
     unless http
-      require 'puppet/network/http_pool'
-      http = Puppet::Network::HttpPool.http_instance(@host, @port, @use_ssl)
+      http = Puppet.runtime[:http].create_session.server(@host, @port).connection(use_ssl: @use_ssl)
     end
     headers = { 'Accept' => 'application/json' }
 
@@ -64,15 +64,15 @@ EOT
 
     uri = "/pdb/query/#{version}/#{endpoint}"
     if source == 'function'
-      uri += URI.escape "?query=#{query.to_json}" unless query.nil? || query.empty?
+      uri = "#{uri}#{URI.escape("?query=#{query.to_json}")}" unless query.nil? || query.empty?
     else
-      uri += "?query=#{query.to_json}" unless query.nil? || query.empty?
+      uri = "#{uri}?query=#{query.to_json}" unless query.nil? || query.empty?
     end
 
     debug("PuppetDB query: #{query.to_json}")
 
-    resp = http.get(uri, headers)
-    fail "PuppetDB query error: [#{resp.code}] #{resp.msg}, query: #{query.to_json}" unless resp.is_a?(Net::HTTPSuccess)
+    resp = http.get(uri, headers: headers)
+    raise "PuppetDB query error: [#{resp.code}] #{resp.msg}, query: #{query.to_json}" unless resp.success?
     JSON.parse(resp.body)
   end
 end
