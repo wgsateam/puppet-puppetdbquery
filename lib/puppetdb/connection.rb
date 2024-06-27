@@ -57,14 +57,14 @@ EOT
     query = PuppetDB::ParserHelper.extract(*Array(options[:extract]), query) if options[:extract]
 
     uri = URI("#{@use_ssl ? 'https' : 'http'}://#{@host}:#{@port}/pdb/query/#{version}/#{endpoint}")
-    _query = "query=#{query.to_json}" unless query.nil? || query.empty?
-    uri.query = (source == 'function' ? URI.encode_www_form(query: _query) : _query) unless _query.empty?
+    _query = "#{query.to_json}" unless query.nil? || query.empty?
+    uri.query = (source == 'function' ? URI.encode_www_form(query: _query) : "query=#{_query}") unless _query.empty?
 
     debug("PuppetDB uri: #{uri.to_s}")
     debug("PuppetDB query: #{query.to_json}")
 
     resp = http.get(uri, headers: headers)
-    raise "PuppetDB query error: [#{resp.code}] #{resp.msg}, query: #{query.to_json}" unless resp.success?
+    raise "PuppetDB query error: [#{resp.code}] #{resp.reason}, url: #{uri.to_s}, query: #{query.to_json}" unless resp.success?
     JSON.parse(resp.body)
   end
 end
