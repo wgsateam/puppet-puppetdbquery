@@ -49,26 +49,18 @@ EOT
       Puppet.deprecation_warning 'Specify http object with :http key instead'
       options = default_options.merge(:http => options)
     end
-    http = options[:http]
 
     source = options[:source]
-
-    unless http
-      http = Puppet.runtime[:http].create_session.server(@host, @port).connection(use_ssl: @use_ssl)
-    end
+    http = options[:http] || Puppet.runtime[:http]
     headers = { 'Accept' => 'application/json' }
 
-    if options[:extract]
-      query = PuppetDB::ParserHelper.extract(*Array(options[:extract]), query)
-    end
+    query = PuppetDB::ParserHelper.extract(*Array(options[:extract]), query) if options[:extract]
 
-    uri = "/pdb/query/#{version}/#{endpoint}"
-    if source == 'function'
-      uri = "#{uri}#{URI.escape("?query=#{query.to_json}")}" unless query.nil? || query.empty?
-    else
-      uri = "#{uri}?query=#{query.to_json}" unless query.nil? || query.empty?
-    end
+    uri = URI("#{@use_ssl ? 'https' : 'http'}://#{@host}:#{@port}/pdb/query/#{version}/#{endpoint}")
+    _query = "query=#{query.to_json}" unless query.nil? || query.empty?
+    uri.query = (source == 'function' ? URI.encode_www_form(query: _query) : _query) unless _query.empty?
 
+    debug("PuppetDB uri: #{uri.to_s}")
     debug("PuppetDB query: #{query.to_json}")
 
     resp = http.get(uri, headers: headers)
